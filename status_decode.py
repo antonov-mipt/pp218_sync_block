@@ -22,17 +22,9 @@ class PORT:
 
 
 class STATUS_PACKET:
-    MCU_TIMER_FREQ = 16000000 #16 MHz
-    CTR_OVERFLOW_VAL = 2**32
     STATUS_PAYLOAD_STRUCT = '>BB Bx L 240s Ll'
     STATUS_PAYLOAD_SZ = struct.calcsize(STATUS_PAYLOAD_STRUCT)
     VER = lambda self, v:f'{(v&0xF0)>>4}.{v&0xF}'
-
-    def mcu_ts_validate(self, ts):
-        if ts is None: return None
-        elif ts&1 == 0: return None # самый младший бит содержит признак валидности
-        elif ts > self.mcu_packet_ts: ts -= self.CTR_OVERFLOW_VAL
-        return ts
 
     def __init__(self, b):
         self.recv_time = time.time()
@@ -50,13 +42,14 @@ class STATUS_PACKET:
         flags = tupl[2]
         self.i2c_ok = (flags & (1<<0)) == 0
         self.gps_utc_time_valid = (flags & (1<<1)) == 0
+        self.pps_approx_valid = (flags & (1<<3)) == 0
         self.pps_valid = (flags & (1<<4)) == 0
         self.gps_ts_valid = (flags & (1<<5)) == 0
         self.gps_packet_valid = (flags & (1<<6)) == 0 
         self.mcu_freq_valid = (flags & (1<<7)) == 0
         self.uptime = tupl[3]
 
-        # тут 12 портов: PPS, 7 входящих и 4 исходящих, каждый по 12 байт
+        # тут 12 портов: PPS, 7 входящих и 4 исходящих, каждый по 20 байт
         port_bytes = [tupl[4][(20*i):(20*(i+1))] for i in range(12)]
         self.packet_ts = tupl[5] + (tupl[6]/1000000)
 
@@ -68,24 +61,22 @@ class STATUS_PACKET:
 
 
     def __str__(self):
-        ports = '\n'.join([f'{str(self.ports[i])}' for i in range(12)])
+        ports = '\n'.join([str(p) for p in self.ports])
         timediff = self.packet_ts - self.recv_time
 
         return '\n'.join([
             f'Версия прошивки/платы: {self.fw_ver}/{self.hw_ver}',
             f'Аптайм системы {self.uptime}',
-            f'',
-            f'Таймштампы PPS валидны: {self.pps_valid}',
-            f'Аппроксимация частоты по PPS валидна: {self.mcu_freq_valid }',
-            f'GPS приемник найден: {self.i2c_ok}',
-            f'Время UTC в пакете валидно: {self.gps_utc_time_valid}',
-            f'Пакет GPS валиден: {self.gps_packet_valid}',
-
-            f'Таймштамп пакета GPS валиден: {self.gps_ts_valid}',
-            f'',
             f'Таймштамп самого пакета {self.packet_ts:.3f}',
             f'Разница с часами ПК {timediff:.3f}',
             f'',
-            f'Таймштампы портов:\n{ports}',
-        ])
+            f'Таймштампы PPS валидны: {self.pps_valid}',
+            f'Массив таймштампов PPS валиден: {self.pps_approx_valid}',
+            f'Частота MCU валидна: {self.mcu_freq_valid }',
+            f'GPS приемник найден: {self.i2c_ok}',
+            f'Пакет GPS валиден: {self.gps_packet_valid}',
+            f'Время UTC в пакете валидно: {self.gps_utc_time_valid}',
+            f'Таймштамп пакета GPS валиден: {self.gps_ts_valid}',
+            f'',
+        ]) + '\n' + ports
 
