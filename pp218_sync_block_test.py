@@ -177,7 +177,7 @@ if __name__ == "__main__":
             mask = 0
             for port_name in OUT_PORTS: 
                 idx = int(port_name[1])
-                mask |= 1<<idx if values[port_name] else 0
+                mask |= 1<<(idx-1) if values[port_name] else 0
             try:
                 mode = OUT_MODES_INV[values['MODE']]
                 duration = int(values['DURAT'])
